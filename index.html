@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>PROYECTO VENGADORES - Misión Multiverso</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&family=JetBrains+Mono:wght@700&display=swap');
+        
+        body, html { 
+            margin: 0; padding: 0;
+            width: 100vw; height: 100vh;
+            overflow: hidden;
+            font-family: 'Inter', sans-serif; 
+            background-color: #020617;
+            color: #f8fafc;
+            touch-action: none;
+            /* Regla de Oro: Cursor de rayo ámbar */
+            cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="%23f59e0b"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>'), auto;
+        }
+
+        .gold-text {
+            background: linear-gradient(to bottom, #fde68a, #f59e0b, #b45309);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+        }
+
+        .fuel-glow-gold {
+            background: rgba(15, 23, 42, 0.9);
+            border: 2px solid #f59e0b;
+            box-shadow: 0 0 20px rgba(245, 158, 11, 0.4);
+        }
+
+        /* Nave pequeña y nítida */
+        .spaceship {
+            position: absolute;
+            width: 20px; height: 20px;
+            z-index: 100;
+            transition: all 2.5s cubic-bezier(0.4, 0, 0.2, 1);
+            filter: grayscale(1) brightness(1.8) drop-shadow(0 0 4px rgba(255,255,255,0.9));
+            image-rendering: pixelated;
+        }
+
+        .rocket-engine {
+            position: absolute; 
+            bottom: -6px; left: 50%; 
+            transform: translateX(-50%);
+            width: 5px; height: 14px;
+            background: radial-gradient(circle, #fff 0%, #38bdf8 40%, transparent 80%);
+            border-radius: 50%;
+            filter: blur(2px);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        /* Propulsión en vuelo */
+        .is-flying .rocket-engine {
+            opacity: 1;
+            animation: thrust 0.1s infinite alternate;
+        }
+
+        @keyframes thrust { 
+            from { height: 10px; opacity: 0.7; } 
+            to { height: 18px; opacity: 1; } 
+        }
+
+        .ai-typing::after { content: '|'; animation: blink 1s infinite; }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #f59e0b; border-radius: 10px; }
+
+        /* Contenedor de mapa preciso */
+        #map-wrapper { 
+            position: relative; 
+            display: inline-block;
+            line-height: 0;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            max-width: 100%;
+            max-height: 85vh;
+        }
+        
+        #map-image { 
+            display: block; 
+            max-width: 100%; 
+            max-height: 85vh; 
+            object-fit: contain;
+            border-radius: 8px;
+            pointer-events: auto;
+        }
+
+        #path-svg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body class="flex flex-col h-screen overflow-hidden">
+    <header class="p-4 flex justify-between items-center bg-slate-950/90 border-b border-slate-800 z-50">
+        <div class="flex items-center gap-4">
+            <!-- Regla de Oro: Logo original -->
+            <img src="https://i.postimg.cc/PrD18ZNp/p-Wzyd.jpg" class="w-12 h-12 rounded-xl border border-amber-500/50 shadow-lg" alt="Logo">
+            <div>
+                <h1 class="text-2xl font-black italic uppercase gold-text leading-tight">PROYECTO VENGADORES</h1>
+                <p class="text-[9px] text-slate-400 font-bold tracking-widest uppercase">Un viaje interestelar por el universo de Marvel</p>
+            </div>
+        </div>
+        
+        <div class="flex items-center gap-3">
+            <button onclick="window.openResetModal()" class="bg-red-950/30 border border-red-500/30 p-2 rounded-xl hover:bg-red-500/20 transition-all text-red-500 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg>
+                <span class="text-[9px] font-black uppercase hidden sm:inline">Reiniciar</span>
+            </button>
+
+            <div id="mission-status-btn" onclick="window.toggleMission()" class="bg-slate-900 border border-slate-700 px-4 py-2 rounded-xl cursor-pointer hover:bg-slate-800 transition-all">
+                <div id="audio-status" class="text-[10px] font-black uppercase text-amber-500 italic">¡Haz click y que comience la aventura!</div>
+            </div>
+
+            <div class="fuel-glow-gold px-4 py-2 rounded-xl flex items-center gap-4">
+                <div>
+                    <!-- Regla de Oro: 6 estrellas y combustible en L -->
+                    <span class="text-[8px] uppercase font-black text-amber-500 block">⭐⭐⭐⭐⭐⭐</span>
+                    <div class="text-xl font-mono font-bold text-white flex items-baseline gap-1">
+                        <span id="total-fuel">0</span><span class="text-xs text-amber-500">L</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="flex-1 flex overflow-hidden">
+        <aside class="w-72 p-4 flex flex-col gap-4 bg-slate-950/50 border-r border-slate-800 overflow-y-auto custom-scrollbar">
+            <!-- Título Protocolo sin resaltado -->
+            <div class="bg-blue-900/10 border border-blue-500/20 p-4 rounded-2xl">
+                <h3 class="text-[10px] font-black text-slate-400 uppercase mb-3 tracking-tighter">Protocolo de Misión</h3>
+                <div class="text-[10px] space-y-3 text-slate-300 font-medium">
+                    <p><span class="text-blue-400 font-black">PASO 1:</span> Haz click para comenzar la aventura.</p>
+                    <p><span class="text-blue-400 font-black">PASO 2:</span> Cuando Jarvis termine, haz click en el mapa para fijar la UD.</p>
+                    <p><span class="text-blue-400 font-black">PASO 3:</span> Inserta los litros (L) necesarios y confirma.</p>
+                    <p><span class="text-blue-400 font-black">PASO 4:</span> Pulsa en "DESPEGUE" para iniciar el vuelo.</p>
+                </div>
+            </div>
+
+            <div class="bg-slate-900/80 p-4 rounded-2xl border border-slate-800">
+                <h2 class="text-[9px] font-black text-white uppercase tracking-widest mb-2 flex items-center gap-2">
+                    <span class="w-2 h-2 bg-blue-500 rounded-full animate-ping"></span> J.A.R.V.I.S.
+                </h2>
+                <div id="jarvis-output" class="text-[11px] text-slate-300 font-mono leading-relaxed ai-typing min-h-[80px]">Esperando órdenes...</div>
+            </div>
+
+            <div class="flex-1">
+                <h2 class="text-[9px] font-black text-white uppercase mb-3">Misiones Activas</h2>
+                <div id="markers-list" class="space-y-2"></div>
+            </div>
+        </aside>
+
+        <main class="flex-1 relative bg-slate-950 flex items-center justify-center overflow-hidden p-8">
+            <div id="map-wrapper">
+                <img id="map-image" src="https://i.postimg.cc/RVwCFnkT/PROYECTO-vengadores-(1).png" alt="Mapa">
+                
+                <svg id="path-svg" class="absolute inset-0 z-10 w-full h-full pointer-events-none">
+                    <polyline id="mission-path" points="" fill="none" stroke="#f59e0b" stroke-width="2" stroke-dasharray="6, 4" />
+                </svg>
+
+                <div id="hero-ship" class="spaceship hidden pointer-events-none">
+                    <div class="rocket-engine"></div>
+                    <img src="https://img.icons8.com/ios-filled/50/ffffff/fighter-jet.png" class="w-full h-full transform rotate-[-45deg]" style="filter: invert(0.8)">
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal de UD con Título Dinámico -->
+    <div id="marker-modal" class="fixed inset-0 bg-slate-950/90 backdrop-blur-sm hidden items-center justify-center z-[200]">
+        <div class="bg-slate-900 border-2 border-amber-500/30 rounded-3xl p-6 w-80 shadow-2xl">
+            <h3 id="modal-mission-title" class="text-lg font-black text-white uppercase italic mb-4">UD</h3>
+            <div class="mb-5">
+                <label class="text-[9px] font-bold text-slate-400 uppercase block mb-2">Litros Necesarios (L)</label>
+                <input type="number" id="point-fuel" value="150" class="w-full bg-slate-950 border border-slate-700 text-white px-4 py-2 rounded-xl font-mono outline-none focus:border-amber-500">
+            </div>
+            <div class="flex gap-2">
+                <button onclick="window.closeModal()" class="flex-1 text-[9px] font-black text-slate-500 uppercase">Cancelar</button>
+                <button id="save-btn-modal" class="flex-1 bg-amber-600 py-3 rounded-xl text-white font-black uppercase text-[9px]">Confirmar</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="reset-modal" class="fixed inset-0 bg-slate-950/95 backdrop-blur-md hidden items-center justify-center z-[300]">
+        <div class="bg-slate-900 border-2 border-red-500/30 rounded-3xl p-8 w-80 shadow-2xl text-center">
+            <div class="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-4 text-red-500">
+                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg>
+            </div>
+            <h3 class="text-xl font-black text-white uppercase italic mb-2">¿Reiniciar Misión?</h3>
+            <div class="flex gap-2 mt-6">
+                <button onclick="window.closeResetModal()" class="flex-1 bg-slate-800 py-3 rounded-xl text-white font-black uppercase text-[9px]">Atrás</button>
+                <button onclick="window.resetGame()" class="flex-1 bg-red-600 py-3 rounded-xl text-white font-black uppercase text-[9px]">Reiniciar</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        const ENLACE_MUSICA = "https://files.catbox.moe/97m242.m4a";
+        const MENSAJE_JARVIS = "Bienvenidos al Proyecto Vengadores, Equipo. El viaje hacia el multiverso está apunto de comenzar. Partimos de un grave problema: Tanos ha reunido el poder de las Gemas del Infinito y ha logrado lo que quería: destruir los hábitos saludables e iniciar una guerra universal. Las ha escondido por el multiverso y está totalmente convencido de que nunca las encontraremos. La única forma de conseguir combustible estelar para viajar por estos mundos es realizando diariamente hábitos que nos permitan mantenernos fuertes y sanos. ¡Juntos podremos reencontrar las Gemas y expulsar a Tanos!";
+
+        const sequence = [
+            { name: "UD 1: Las Gemas del Infinito", icon: "https://img.icons8.com/color/96/infinity-gauntlet.png", hero: "El Guantelete", quote: "Equipo, el destino del multiverso comienza aquí. Comenzaremos creando nuestro propio programa de Radio." },
+            { name: "UD 2: Iron Man en escena", icon: "https://img.icons8.com/color/96/iron-man.png", hero: "Tony Stark", quote: "Equipo, he analizado la zona. Mantengan sus armaduras listas, porque vamos a vivir ¡Una gran aventura!" },
+            { name: "UD 3: Potenciamos nuestras habilidades", icon: "https://i.postimg.cc/W4709vvs/GZp-Yl.jpg", hero: "Peter Parker", quote: "¡Hola equipo! Mi sentido arácnido dice que estamos cerca, ¡es el momento de despertar el pensamiento computacional!" },
+            { name: "UD 4: Adquirimos nuevos poderes", icon: "https://i.postimg.cc/yNT0fHHs/l2KFZ.jpg", hero: "Scott Lang", quote: "A veces para ganar hay que hacerse pequeño... ¿Preparádos para adquirir nuevos poderes?" },
+            { name: "UD 5: Misiones de cooperhéroes", icon: "https://i.postimg.cc/g0K3MWWb/i-NSwu.jpg", hero: "Stephen Strange", quote: "He recorrido 14 millones de universos para ver el futuro, y Solo ganaremos si trabajamos" },
+            { name: "UD 6: Viaje Intercultural", icon: "https://img.icons8.com/color/96/captain-america.png", hero: "Steve Rogers", quote: "¡Vengadores unidos, jamás serán vencidos!¡luchemos por la diversidad cultural!" },
+            { name: "UD 7: Tesoros Alternativos", icon: "https://i.postimg.cc/rFLnY86s/Chat-GPT-Image-12-may-2026-22-56-18.png", hero: "Thor Odinson", quote: "¡Por Odín! Busquemos lo oculto, lo diferente, lo alternativo" },
+            { name: "UD 8: Los Guardianes", icon: "https://i.postimg.cc/1zxfDYnC/Chat-GPT-Image-12-may-2026-22-43-37.png", hero: "Loki", quote: "Les ayudaré... por ahora, porque lo están haciendo genial" },
+            { name: "UD 9: Gema del Poder", icon: "https://i.postimg.cc/bwyns5n6/Ztrnp.jpg", hero: "Peter Quill", quote: " Equipo,¡Busquémos el caché escondido!... quizás haya una gema dentro" },
+            { name: "UD 10: Unidos por la meta", icon: "https://i.postimg.cc/k55hFw0N/Chat-GPT-Image-12-may-2026-22-54-46.png", hero: "Carol Danvers", quote: "Detecto una brecha... Sigan mi rastro" },
+            { name: "UD 11: Vengadores a la final", icon: "https://i.postimg.cc/3xq2VByw/2c8a9661d04418f0e9b4f743cd81f567.jpg", hero: "T'Challa", quote: "Solo se que el espíritu de Wakanda está con nosotros" },
+            { name: "UD 12: Olimpiadas Galácticas", icon: "https://i.postimg.cc/qMdbZkfh/pngaaa-com-421103.png", hero: "Thanos", quote: "Soy un ser inevitable... pero su lucha por recuperar los hábitos saludables es una anomalía que no me esperaba. Lo habéis conseguido ¡Me habéis derrotado!" }
+        ];
+
+        let state = { markers: [], totalFuel: 0, currentStep: -1, hasSpokenIntro: false, isMoving: false, isPaused: false };
+        let backgroundMusic = new Audio(ENLACE_MUSICA);
+        backgroundMusic.loop = true;
+        backgroundMusic.volume = 0.15;
+
+        // Motor de ruido para el motor (Noise -> AutoFilter -> Destination)
+        const autoFilter = new Tone.AutoFilter({ frequency: "1n", baseFrequency: 200, octaves: 4 }).toDestination().start();
+        const engineNoise = new Tone.Noise("pink").connect(autoFilter).start();
+        engineNoise.volume.value = -Infinity;
+
+        window.toggleMission = async () => {
+            if (!state.hasSpokenIntro) {
+                backgroundMusic.play().catch(() => {});
+                speakJarvis(MENSAJE_JARVIS);
+                state.hasSpokenIntro = true;
+                document.getElementById('audio-status').innerText = "Misión Activa";
+                document.getElementById('audio-status').className = "text-[10px] font-black uppercase text-green-400 italic";
+                return;
+            }
+            state.isPaused = !state.isPaused;
+            if (state.isPaused) {
+                backgroundMusic.pause();
+                window.speechSynthesis.pause();
+                document.getElementById('audio-status').innerText = "Misión en Pausa";
+            } else {
+                backgroundMusic.play();
+                window.speechSynthesis.resume();
+                document.getElementById('audio-status').innerText = "Misión Activa";
+            }
+        };
+
+        async function speakJarvis(msg) {
+            const output = document.getElementById('jarvis-output');
+            output.innerText = "";
+            let i = 0;
+            const type = () => { if (i < msg.length) { output.innerText += msg.charAt(i++); setTimeout(type, 20); } };
+            type();
+            
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
+                const utter = new SpeechSynthesisUtterance(msg);
+                utter.lang = 'es-ES'; 
+                utter.rate = 1.0; 
+                utter.volume = 1.0;
+                utter.pitch = 1.0;
+                window.speechSynthesis.speak(utter);
+            }
+        }
+
+        window.updateUI = () => {
+            document.getElementById('total-fuel').innerText = state.totalFuel;
+            document.querySelectorAll('.marker-pin').forEach(p => p.remove());
+            const list = document.getElementById('markers-list');
+            list.innerHTML = '';
+            
+            const wrapper = document.getElementById('map-wrapper');
+            const w = wrapper.clientWidth;
+            const h = wrapper.clientHeight;
+            let pointsStr = "";
+
+            state.markers.forEach((m, i) => {
+                const pin = document.createElement('div');
+                pin.className = "marker-pin absolute z-40 transform -translate-x-1/2 -translate-y-1/2 cursor-pointer";
+                pin.style.left = `${m.x}%`; pin.style.top = `${m.y}%`;
+                pin.innerHTML = `<img src="${sequence[i].icon}" class="w-7 h-7 rounded-full border-2 border-amber-500 bg-slate-900 shadow-xl ${i === state.currentStep ? 'scale-125 ring-2 ring-amber-400' : 'opacity-80'}">`;
+                
+                // Click en mapa para escuchar mensaje (Regla de Oro)
+                pin.onclick = (e) => {
+                    e.stopPropagation();
+                    speakJarvis(`${sequence[i].hero} informa: "${sequence[i].quote}"`);
+                };
+                wrapper.appendChild(pin);
+
+                if (i <= state.currentStep) {
+                    const px = (m.x * w) / 100;
+                    const py = (m.y * h) / 100;
+                    pointsStr += `${px},${py} `;
+                }
+
+                const item = document.createElement('div');
+                item.className = `p-2.5 rounded-xl border flex justify-between items-center gap-2 transition-all ${i === state.currentStep ? 'bg-amber-500/15 border-amber-500 shadow-lg' : 'bg-slate-900/80 border-slate-800'}`;
+                item.innerHTML = `
+                    <span class="text-[8px] font-black uppercase text-white leading-tight flex-1">${sequence[i].name}</span>
+                    ${i === state.currentStep + 1 ? `<button onclick="window.jumpTo(${i})" class="bg-amber-600 hover:bg-amber-500 px-3 py-1.5 rounded-lg text-[7px] font-black text-white shadow-lg transition-transform active:scale-95">DESPEGUE</button>` : ''}
+                `;
+                list.appendChild(item);
+            });
+
+            document.getElementById('mission-path').setAttribute('points', pointsStr);
+            if (state.currentStep >= 0) {
+                const ship = document.getElementById('hero-ship');
+                ship.classList.remove('hidden');
+                ship.style.left = `${state.markers[state.currentStep].x}%`;
+                ship.style.top = `${state.markers[state.currentStep].y}%`;
+            }
+        };
+
+        window.jumpTo = async (idx) => {
+            if (state.isMoving || state.isPaused) return;
+            state.isMoving = true;
+            state.currentStep = idx;
+            state.totalFuel += state.markers[idx].fuelRequired;
+            
+            if (Tone.context.state !== 'running') await Tone.start();
+            engineNoise.volume.rampTo(-10, 0.2); 
+            document.getElementById('hero-ship').classList.add('is-flying');
+            
+            window.updateUI();
+            window.saveState();
+
+            setTimeout(() => {
+                state.isMoving = false;
+                engineNoise.volume.rampTo(-Infinity, 0.5);
+                document.getElementById('hero-ship').classList.remove('is-flying');
+            }, 2500);
+        };
+
+        document.getElementById('map-wrapper').onclick = (e) => {
+            if (state.markers.length >= 12) return;
+            const wrapper = document.getElementById('map-wrapper');
+            const rect = wrapper.getBoundingClientRect();
+            const coords = { 
+                x: ((e.clientX - rect.left) / rect.width) * 100, 
+                y: ((e.clientY - rect.top) / rect.height) * 100 
+            };
+            
+            const nextUD = sequence[state.markers.length].name;
+            document.getElementById('modal-mission-title').innerText = nextUD;
+            document.getElementById('marker-modal').classList.replace('hidden', 'flex');
+            
+            document.getElementById('save-btn-modal').onclick = () => {
+                const currentUDIdx = state.markers.length;
+                const missionData = sequence[currentUDIdx];
+                
+                state.markers.push({ ...coords, fuelRequired: parseInt(document.getElementById('point-fuel').value) || 150 });
+                
+                /* Regla de Oro: La voz de Jarvis suena al confirmar */
+                speakJarvis(`${missionData.hero} informa: "${missionData.quote}"`);
+                
+                window.closeModal();
+                window.updateUI();
+                window.saveState();
+            };
+        };
+
+        window.openResetModal = () => document.getElementById('reset-modal').classList.replace('hidden', 'flex');
+        window.closeResetModal = () => document.getElementById('reset-modal').classList.replace('flex', 'hidden');
+        window.resetGame = () => {
+            state = { markers: [], totalFuel: 0, currentStep: -1, hasSpokenIntro: false, isMoving: false, isPaused: false };
+            localStorage.removeItem('vengadores_data');
+            location.reload();
+        };
+
+        window.closeModal = () => document.getElementById('marker-modal').classList.replace('flex', 'hidden');
+        window.saveState = () => localStorage.setItem('vengadores_data', JSON.stringify(state));
+        window.loadState = () => {
+            const data = localStorage.getItem('vengadores_data');
+            if (data) { state = JSON.parse(data); window.updateUI(); }
+        };
+
+        window.onload = window.loadState;
+        window.onresize = window.updateUI;
+    </script>
+</body>
+</html>
